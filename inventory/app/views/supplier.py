@@ -1,4 +1,4 @@
-from django.db.models import Count,Sum
+from django.db.models import Count,Sum,F
 
 from rest_framework.response import Response
 from rest_framework.request import Request
@@ -78,18 +78,18 @@ def supplier_matrics(req:Request):
     filters={}
     if supplier is not None:
         filters['name__icontains'] = supplier
-
-    total_product = Supplier.objects.prefetch_related('productsSupplier').filter(**filters).annotate(total_products=Count('productsSupplier'))
-    products = Supplier.objects.prefetch_related('productsSupplier').filter(**filters).all()
-    highest_count = total_product.order_by('-total_products').first()
-    lowest_count = total_product.order_by('total_products').first()
     
-    serializer  = SupplierSerializer(products,many=True)
+    # total_product = Supplier.objects.prefetch_related('productsSupplier').filter(**filters).annotate(total_products=Count('productsSupplier'))
+    # products = Supplier.objects.prefetch_related('productsSupplier').filter(**filters).all()
+    # highest_count = total_product.order_by('-total_products').first()
+    # lowest_count = total_product.order_by('total_products').first()
+    product_by_supplier = Supplier.objects.prefetch_related('productsSupplier').values('id').annotate(total_product=Count('productsSupplier'),total_price =Sum(F('productsSupplier__price') * F('productsSupplier__quantity')) )
+    # serializer  = SupplierSerializer(products,many=True)
     # print(total_product.count())
     return Response({
-        "total_product":total_product.aggregate(total=Count('productsSupplier'))['total'],
-                     "highest_count":highest_count.total_products,
-                     "lowest_count":lowest_count.total_products,
-                     "data":serializer.data
+        # "total_product":total_product.aggregate(total=Count('productsSupplier'))['total'],
+        #              "highest_count":highest_count.total_products,
+        #              "lowest_count":lowest_count.total_products,
+                     "product_by_supplier":product_by_supplier
                      },
                     status.HTTP_200_OK)        

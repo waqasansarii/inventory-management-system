@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view
 from rest_framework import status
 
 from ..models import Product,Category,Supplier,ProductSuppliers
-from ..serializer import ProductSerializer,SupplierProductSerializer
+from ..serializer import ProductSerializer
 
 fields = ['name','description','price','quantity']
 filter_fields = ['name','category','suppliers']
@@ -109,9 +109,6 @@ def get_update_delete_product(req:Request,id):
                                 product_supplier.supplier = data
                             product_supplier.save() 
                                
-                    
-
-                         
                     except Supplier.DoesNotExist:
                         return Response({'error': 'Supplier not found'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -144,6 +141,8 @@ def product_matrics(req:Request):
     #     filters['id'] = product_id
 
     product = Product.objects.aggregate(total_products=Count('id'))
-    product_category = Product.objects.values('category_id').annotate(total_product=Count('id'))
-    product_supply = ProductSuppliers.objects.values('supplier_id').annotate(total_supply=Sum('supply')).all()
-    return Response({"product":product,"supply":product_supply,"product_category":product_category},status.HTTP_200_OK)    
+    product_category = Product.objects.select_related('productsCategory').values('category_id').annotate(total_product=Count('id'))
+    product_supply = ProductSuppliers.objects.prefetch_related(
+                Prefetch('productsuppliers_set', queryset=ProductSuppliers.objects.select_related('supplier').all())
+                ).values('supplier_id').annotate(total_supply=Sum('supply')).all()
+    return Response({"product":product,"supply_by_suppliers":product_supply,"products_by_category":product_category},status.HTTP_200_OK)    
