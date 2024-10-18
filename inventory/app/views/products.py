@@ -1,4 +1,6 @@
 from django.db.models import Count,Q,Sum,Avg
+from django.db.models import Prefetch
+
 from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework.decorators import api_view
@@ -27,7 +29,11 @@ def get_create_products(req:Request):
                     filter_val[f'{field}'] = param
         try:
                 
-            product = Product.objects.select_related('category').prefetch_related('suppliers').filter(**filter_val).all()
+            product = Product.objects.select_related('category','user').prefetch_related(
+                Prefetch('productsuppliers_set', queryset=ProductSuppliers.objects.select_related('supplier').all())
+                ).filter(**filter_val).all()
+
+            
             data = ProductSerializer(product,many=True)
             return Response(data.data,status.HTTP_200_OK)
         except ValueError:
@@ -38,25 +44,26 @@ def get_create_products(req:Request):
         print(req.data)
         serializer = ProductSerializer(data=req.data)
         if serializer.is_valid():
-
             suppliers_id = serializer.validated_data.pop('suppliers_id',[])
-            # print(suppliers_id)
+            # set the user id in the product 
             serializer.validated_data['user_id'] = req.user.id
-       
-            is_suppliers = Supplier.objects.filter(id__in=suppliers_id)
-
-            print('is supplier',len(is_suppliers),suppliers_id)
-            if len(is_suppliers) >=1 :
-                products = Product.objects.create(**serializer.validated_data)
-            else:
-                return Response({"detail":"Supplier does not exists"},status.HTTP_400_BAD_REQUEST)
+            # getting list of suppliers from supplier table 
+            is_suppliers = Supplier.objects.filter(id__in=[id.get('id') for id in suppliers_id])
+            
+            # if suppliers_id is not null and the supplier does not exist 
+            if len(suppliers_id)>0 and len(is_suppliers)<1 :
+                return Response({"details":"Supplier does not exists"},status.HTTP_400_BAD_REQUEST)
+            
+            products = Product.objects.create(**serializer.validated_data)
+            
+            # adding data in the intermediate table if supplier found in the supplier table 
+            if suppliers_id is not None and len(is_suppliers) >= 1:
+                for i,data in enumerate(is_suppliers):
+                    supply_data = suppliers_id[i].get('supply')
                     
-            if suppliers_id is not None or len(is_suppliers) >= 1:
-                for supplier in is_suppliers:
-                    ProductSuppliers.objects.create(product=products, supplier=supplier,quantity=30)  # Adjust the quantity as needed
+                    ProductSuppliers.objects.create(product=products, supplier=data,supply=supply_data)  
 
-                # products.suppliers.set(suppliers_id)f
-            return Response({"data":serializer.validated_data,"details":'Products created'},status.HTTP_201_CREATED)
+            return Response({"data":serializer.validated_data,"details":'Product created'},status.HTTP_201_CREATED)
         return Response(serializer.errors,status.HTTP_400_BAD_REQUEST)
     
     
@@ -90,8 +97,20 @@ def get_update_delete_product(req:Request,id):
                         return Response({'error': 'Category not found'}, status=status.HTTP_400_BAD_REQUEST)
  
                 if suppliers is not None:
+                    print('put supplier',suppliers)
                     try:
-                        supplier = Supplier.objects.filter(id__in=req.data.get('suppliers'))  
+
+                        supplier = Supplier.objects.filter(id__in=[id.get('id') for id in suppliers])
+                        if len(supplier) >= 1:
+                            product_supplier=ProductSuppliers.objects.get(product_id=id)  
+                            for i,data in enumerate(supplier):
+                                supply_data = suppliers[i].get('supply')
+                                product_supplier.supply = supply_data
+                                product_supplier.supplier = data
+                            product_supplier.save() 
+                               
+                    
+
                          
                     except Supplier.DoesNotExist:
                         return Response({'error': 'Supplier not found'}, status=status.HTTP_400_BAD_REQUEST)
@@ -100,7 +119,7 @@ def get_update_delete_product(req:Request,id):
                 
                 if req.data is not None:
                     product.save() 
-                    product.suppliers.set(supplier)
+                    # product.suppliers.set(supplier)
                     return Response({"name":product.name,"description":product.description}, status=status.HTTP_201_CREATED)
                 else:
                     return Response({"details":"enter name or description"}, status=status.HTTP_400_BAD_REQUEST)

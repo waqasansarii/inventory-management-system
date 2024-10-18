@@ -24,13 +24,13 @@ class Product(models.Model):
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
     category = models.ForeignKey(Category,on_delete=models.CASCADE,related_name='productsCategory',null=True)
-    user = models.ForeignKey(User,on_delete=models.CASCADE,related_name='products')
+    user = models.ForeignKey(User,on_delete=models.CASCADE,related_name='productsUser')
     suppliers = models.ManyToManyField(Supplier, related_name='productsSupplier', blank=True,null=True,through='ProductSuppliers')
     
 class ProductSuppliers(models.Model):
     product = models.ForeignKey('Product',on_delete=models.CASCADE)
     supplier = models.ForeignKey('Supplier',on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(blank=True,null=True)
+    supply = models.PositiveIntegerField(blank=True,null=True)
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
     class Meta:
