@@ -134,14 +134,16 @@ def get_update_delete_product(req:Request,id):
 
 @api_view(['GET'])
 def product_matrics(req:Request):
-    categor_id = req.query_params.get('category_id')
-    product_id = req.query_params.get('product_id')
-    products = Product.objects.all()
-    filters={}
-    if categor_id is not None:
-        filters['category'] = categor_id
-    if product_id is not None:
-        filters['id'] = product_id
+    # categor_id = req.query_params.get('category_id')
+    # product_id = req.query_params.get('product_id')
+    # products = Product.objects.all()
+    # filters={}
+    # if categor_id is not None:
+    #     filters['category'] = categor_id
+    # if product_id is not None:
+    #     filters['id'] = product_id
 
-    product = Product.objects.filter(**filters).aggregate(total_products=Count('id'),total_stock = Sum('quantity'),average_price=Avg('price'))
-    return Response(product,status.HTTP_200_OK)    
+    product = Product.objects.aggregate(total_products=Count('id'))
+    product_category = Product.objects.values('category_id').annotate(total_product=Count('id'))
+    product_supply = ProductSuppliers.objects.values('supplier_id').annotate(total_supply=Sum('supply')).all()
+    return Response({"product":product,"supply":product_supply,"product_category":product_category},status.HTTP_200_OK)    
